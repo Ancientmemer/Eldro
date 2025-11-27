@@ -3,4 +3,4 @@ uvicorn[standard]
 httpx
 python-dotenv
 pydantic
-pymongo[srv
+pymongo[srv]
