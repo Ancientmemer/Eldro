@@ -4,3 +4,4 @@ httpx
 python-dotenv
 pydantic
 pymongo[srv]
+google-genai
