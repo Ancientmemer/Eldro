@@ -1,0 +1,22 @@
+# migrate_json_to_mongo.py
+import json
+from pymongo import MongoClient
+import os
+
+MONGO_URI = os.getenv("MONGODB_URI")
+DB_NAME = os.getenv("MONGODB_DB", "eldro_bot")
+COL = os.getenv("MONGODB_COLLECTION", "users")
+DB_FILE = "storage.json"
+
+client = MongoClient(MONGO_URI)
+db = client[DB_NAME]
+users = db[COL]
+
+with open(DB_FILE, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+for k, v in data.items():
+    v["id"] = int(v.get("id", k))
+    users.update_one({"id": v["id"]}, {"$set": v}, upsert=True)
+
+print("Migration done.")
