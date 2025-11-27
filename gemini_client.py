@@ -7,7 +7,7 @@
 import base64
 import traceback
 from google import genai
-from google.api_core.exceptions import ClientError
+from google.api_core.exception import ClientError
 
 # Client auto-reads GEMINI_API_KEY from Environment
 client = genai.Client()
