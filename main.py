@@ -2,6 +2,7 @@
 # Manglish comments and user-facing strings
 import os
 import json
+import db_storage as storage
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 import httpx
 from gemini_client import call_gemini_text, generate_image_nano_banana
