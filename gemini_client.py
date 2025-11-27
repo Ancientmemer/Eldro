@@ -16,7 +16,7 @@ client = genai.Client()
 # ======================================================
 #  TEXT GENERATION
 # ======================================================
-async def call_gemini_text(prompt: str, model: str = "gemini-2.5-flash") -> str:
+async def call_gemini_text(prompt: str, model: str = "gemini-1.5-flash") -> str:
     """
     Manglish: Prompt plain string koduth generate cheyyum.
     Model not found aanenkil list_model print cheyyum.
