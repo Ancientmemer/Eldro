@@ -1,88 +1,116 @@
 # gemini_client.py
-# Manglish comments inside strings
-# This file uses the official google-genai client.
-# Ensure `google-genai` is installed and GEMINI_API_KEY env var is set on Koyeb.
+# Manglish comments included 😄
+# ✔ Official google-genai client
+# ✔ Correct payload format
+# ✔ Auto list available models if 404 happens
 
 import base64
+import traceback
 from google import genai
+from google.api_core.exceptions import ClientError
 
-# The official client will read GEMINI_API_KEY from the environment automatically
+# Client auto-reads GEMINI_API_KEY from Environment
 client = genai.Client()
 
-# -----------------------
-# Text generation wrapper
-# -----------------------
+
+# ======================================================
+#  TEXT GENERATION
+# ======================================================
 async def call_gemini_text(prompt: str, model: str = "gemini-2.5-flash") -> str:
     """
-    Manglish: Itha text call. Important: pass plain string to `contents`.
-    Returns text or an error message.
+    Manglish: Prompt plain string koduth generate cheyyum.
+    Model not found aanenkil list_model print cheyyum.
     """
+
     try:
-        # PASS A PLAIN STRING for contents (not a dict)
         response = client.models.generate_content(
             model=model,
-            contents=prompt  # <-- IMPORTANT: plain string
-            # optional: temperature=0.7, max_output_tokens=512
+            contents=prompt  # <-- IMPORTANT: plain string, NOT dict
         )
-        # Most responses expose .text or candidates. Use safe extraction.
-        # Try response.text first:
-        text = getattr(response, "text", None)
-        if text:
-            return text
 
-        # Fallback: check candidates structure
+        # 1) Try response.text
+        if hasattr(response, "text") and response.text:
+            return response.text
+
+        # 2) Fallback: candidates[0].content.parts[0].text
         candidates = getattr(response, "candidates", None)
         if candidates:
             try:
                 cand = candidates[0]
-                # cand.content.parts -> list of parts with text
                 parts = getattr(cand, "content", {}).get("parts", [])
                 if parts:
                     return parts[0].get("text", "") or "Sorry, Gemini returned empty."
-            except Exception:
+            except:
                 pass
 
         # Final fallback
         return "Sorry, Gemini returned empty."
+
+    except ClientError as ce:
+        # MODEL NOT FOUND OR OTHER GOOGLE ERRORS
+        print("Gemini ClientError:", repr(ce))
+
+        # If model not found: list models
+        try:
+            print("Listing available models from Google →")
+            models = client.models.list()
+            names = [m.name for m in models]
+            print("Available models:", names)
+        except Exception as e:
+            print("Failed listing models:", repr(e))
+            traceback.print_exc()
+
+        return "Sorry, Gemini API error (model not found). Check logs."
+
     except Exception as e:
-        # Print error to Koyeb logs for debugging
         print("Gemini text ERROR:", repr(e))
+        traceback.print_exc()
         return "Sorry, Gemini API error."
 
-# -----------------------
-# Nano Banana / Image generation wrapper
-# -----------------------
+
+# ======================================================
+#  IMAGE GENERATION (NANO BANANA STYLE)
+# ======================================================
 async def generate_image_nano_banana(prompt: str) -> dict:
     """
-    Manglish: Call Gemini image generation (Nano Banana).
-    Return {'b64': <base64 PNG str>} or {'url': <public_url>} or {} on error.
-    NOTE: pass prompt as plain string.
+    Manglish: Nano Banana / Gemini Image generation.
+    Returns:
+      { "b64": "<base64image>" }
+      or { "url": "<public_url>" }
+      or {} on error
     """
+
     try:
         img_resp = client.images.generate(
-            model="gemini-2.5-image",  # change model name if your project uses another
-            prompt=prompt               # <-- IMPORTANT: plain string
-            # optional params like size can be added here
+            model="gemini-2.5-image",    # If not available, logs will show correct name
+            prompt=prompt                # <-- IMPORTANT: plain string input
         )
 
-        # Many responses include images list with base64 in `.images[0].b64`
+        # 1) Try image list with base64
         images = getattr(img_resp, "images", None) or []
         if images:
             first = images[0]
-            # Try common keys
             b64 = first.get("b64") or first.get("data") or first.get("image")
-            # if bytes, convert
+
+            # If bytes → convert to base64
             if isinstance(b64, (bytes, bytearray)):
                 return {"b64": base64.b64encode(b64).decode("utf-8")}
+
+            # If already plain base64 string
             if isinstance(b64, str) and b64.strip():
                 return {"b64": b64}
 
-        # fallback: some APIs return a result_url or url
-        url = getattr(img_resp, "result_url", None) or (img_resp.get("url") if isinstance(img_resp, dict) else None)
+        # 2) Fallback public URL
+        url = getattr(img_resp, "result_url", None) or (
+            img_resp.get("url") if isinstance(img_resp, dict) else None
+        )
+
         if url:
             return {"url": url}
 
-        return {}
+        return {}  # empty image result
+
     except Exception as e:
         print("Gemini image ERROR:", repr(e))
+        traceback.print_exc()
         return {}
