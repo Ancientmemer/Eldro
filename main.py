@@ -1,96 +1,95 @@
+# hf_client.py
+# Manglish comments ok
 import os
 import base64
-import httpx
-from fastapi import FastAPI, Request, BackgroundTasks
-from huggingface_client import call_hf_text, call_hf_image
+import traceback
+import asyncio
+from huggingface_hub import InferenceApi, inference_api
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-EXPOSED_URL = os.getenv("EXPOSED_URL", "")
-PORT = int(os.getenv("PORT", 8080))
+# Read HF key from env
+HF_KEY = os.getenv("HUGGINGFACE_API_KEY")
+if not HF_KEY:
+    print("Warning: HUGGINGFACE_API_KEY not set. HF calls will fail.")
 
-TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+# Helper to create InferenceApi instance
+def _get_inference(model: str):
+    # The InferenceApi class will route requests to the correct HF router.
+    # It uses the HF token for auth.
+    return InferenceApi(repo_id=model, token=HF_KEY)
 
-app = FastAPI()
+# ------------------------
+# Text generation wrapper
+# ------------------------
+async def call_hf_text(prompt: str, model: str = "gpt2") -> str:
+    """
+    Manglish: Call Hugging Face text model via huggingface_hub.InferenceApi
+    model default "gpt2" (change to a better HF model you have access to).
+    """
+    try:
+        # run blocking InferenceApi in thread
+        def _sync_call():
+            api = _get_inference(model)
+            # for text generation, pass {"inputs": prompt}
+            out = api(inputs=prompt, params={"max_new_tokens": 256})
+            # `out` can be a string or a dict depending on model/format
+            if isinstance(out, str):
+                return out
+            # Some models return list/dict; try safe extraction:
+            if isinstance(out, list) and out:
+                if isinstance(out[0], dict) and "generated_text" in out[0]:
+                    return out[0]["generated_text"]
+                return str(out[0])
+            if isinstance(out, dict):
+                # try common keys
+                for k in ("generated_text","text","output"):
+                    if k in out:
+                        return out[k]
+                return str(out)
+            return str(out)
+        return await asyncio.to_thread(_sync_call)
+    except Exception as e:
+        print("HF text error:", repr(e))
+        traceback.print_exc()
+        return "Sorry, HF text API error."
 
-# -----------------------------------------------------------
-# Telegram helpers
-# -----------------------------------------------------------
-async def send_msg(chat_id, text):
-    async with httpx.AsyncClient() as client:
-        await client.post(f"{TELEGRAM_API}/sendMessage", data={
-            "chat_id": chat_id,
-            "text": text
-        })
-
-async def send_photo_b64(chat_id, b64, caption=""):
-    img_bytes = base64.b64decode(b64)
-    files = {"photo": ("ai.png", img_bytes, "image/png")}
-    async with httpx.AsyncClient() as client:
-        await client.post(f"{TELEGRAM_API}/sendPhoto",
-                          data={"chat_id": chat_id, "caption": caption},
-                          files=files)
-
-# -----------------------------------------------------------
-# Bot Brain
-# -----------------------------------------------------------
-async def handle_agent(chat_id, text):
-    text = text.strip()
-
-    # IMAGE MODE
-    if text.lower().startswith("/img"):
-        prompt = text[len("/img"):].strip()
-        await send_msg(chat_id, "Generating image…")
-
-        b64 = call_hf_image(prompt)
-
-        if not b64:
-            await send_msg(chat_id, "Image API error. Trying text mode…")
-            desc = call_hf_text(f"Describe an image for: {prompt}")
-            await send_msg(chat_id, desc)
-        else:
-            await send_photo_b64(chat_id, b64, caption=f"AI Image for: {prompt}")
-        return
-
-    # TEXT MODE
-    reply = call_hf_text(text)
-    if not reply:
-        reply = "No response from AI."
-    await send_msg(chat_id, reply)
-
-# -----------------------------------------------------------
-# Webhook handler
-# -----------------------------------------------------------
-@app.post("/webhook")
-async def webhook(req: Request, background_tasks: BackgroundTasks):
-    update = await req.json()
-
-    msg = update.get("message", {})
-    chat = msg.get("chat", {})
-    chat_id = chat.get("id")
-    text = msg.get("text", "")
-
-    if chat_id and text:
-        background_tasks.add_task(handle_agent, chat_id, text)
-
-    return {"ok": True}
-
-# -----------------------------------------------------------
-# Setup webhook
-# -----------------------------------------------------------
-@app.get("/set_webhook")
-async def set_webhook():
-    if not EXPOSED_URL:
-        return {"error": "Set EXPOSED_URL first"}
-
-    webhook_url = f"{EXPOSED_URL}/webhook"
-
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"{TELEGRAM_API}/setWebhook",
-            params={"url": webhook_url}
-        )
-        return r.json()
-
-@app.get("/")
-async def home():
-    return {"msg": "HF AI Assistant running"}
+# ------------------------
+# Image generation wrapper
+# ------------------------
+async def call_hf_image(prompt: str, model: str = "stabilityai/stable-diffusion-2") -> dict:
+    """
+    Manglish: Generate image using HF Inference API for image models (SD etc).
+    Returns dict: {'b64': <base64 png>} or {'url': <public_url>} or {} on error.
+    model default: stabilityai/stable-diffusion-2 (change if you prefer another)
+    """
+    try:
+        def _sync_img():
+            api = _get_inference(model)
+            # For image generation, HF often returns binary bytes.
+            resp = api(inputs=prompt, options={"wait_for_model": True})
+            # If resp is bytes, assume image bytes
+            if isinstance(resp, (bytes, bytearray)):
+                return {"b64": base64.b64encode(resp).decode("utf-8")}
+            # If dict with 'generated_image' or 'image' or 'data'
+            if isinstance(resp, dict):
+                for k in ("generated_image","image","data","b64"):
+                    if k in resp:
+                        v = resp[k]
+                        if isinstance(v, (bytes, bytearray)):
+                            return {"b64": base64.b64encode(v).decode("utf-8")}
+                        if isinstance(v, str) and v.strip():
+                            return {"b64": v}
+                # If an URL provided
+                if "url" in resp:
+                    return {"url": resp["url"]}
+            # If response is string (rare) — maybe a URL or base64
+            if isinstance(resp, str):
+                # if looks like base64 (very long) treat as b64; otherwise return as url/text
+                if len(resp) > 200 and all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r" for c in resp[:100]):
+                    return {"b64": resp}
+                return {"url": resp}
+            return {}
+        return await asyncio.to_thread(_sync_img)
+    except Exception as e:
+        print("HF image error:", repr(e))
+        traceback.print_exc()
+        return {}
