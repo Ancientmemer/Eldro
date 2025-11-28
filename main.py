@@ -1,27 +1,34 @@
+# main.py
 import os
-import httpx
+import base64
 from fastapi import FastAPI, Request
-from hf_client import call_hf_text, call_hf_image
+import httpx
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-BASE_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+from hf_client import call_hf_text, call_hf_image
 
 app = FastAPI()
 
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "HF Telegram bot running"}
-
-
-@app.get("/set_webhook")
-async def set_webhook():
-    webhook_url = os.getenv("WEBHOOK_URL")
+# -------------------------- TELEGRAM HELPERS --------------------------
+async def send_message(chat_id, text):
+    url = f"{BASE_URL}/sendMessage"
     async with httpx.AsyncClient() as client:
-        r = await client.get(f"{BASE_URL}/setWebhook?url={webhook_url}")
-    return r.json()
+        await client.post(url, json={"chat_id": chat_id, "text": text})
 
+async def send_photo(chat_id, image_b64):
+    url = f"{BASE_URL}/sendPhoto"
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            url,
+            json={
+                "chat_id": chat_id,
+                "photo": f"data:image/png;base64,{image_b64}"
+            },
+        )
 
+# -------------------------- WEBHOOK ENDPOINT --------------------------
 @app.post("/webhook")
 async def webhook(req: Request):
     data = await req.json()
@@ -29,41 +36,36 @@ async def webhook(req: Request):
     if "message" not in data:
         return {"status": "ok"}
 
-    msg = data["message"]
-    chat_id = msg["chat"]["id"]
+    message = data["message"]
+    chat_id = message["chat"]["id"]
+    text = message.get("text", "")
 
-    if "text" in msg:
-        text = msg["text"]
+    # /img prompt
+    if text.startswith("/img"):
+        prompt = text.replace("/img", "").strip()
+        await send_message(chat_id, "Generating image... please wait!")
 
-        if text.startswith("/img"):
-            prompt = text.replace("/img", "").strip()
-            if prompt == "":
-                return await send_message(chat_id, "❗ Usage: /img cat with hat")
+        img_b64 = await call_hf_image(prompt)
+        if img_b64:
+            await send_photo(chat_id, img_b64)
+        else:
+            await send_message(chat_id, "Image generation failed.")
+        return {"ok": True}
 
-            img_b64 = await call_hf_image(prompt)
-            if not img_b64:
-                return await send_message(chat_id, "⚠️ Image generation failed.")
+    # Normal text chat
+    reply = await call_hf_text(text)
+    await send_message(chat_id, reply)
 
-            await send_photo_b64(chat_id, img_b64)
-            return {"status": "ok"}
+    return {"ok": True}
 
-        # normal text reply
-        reply = await call_hf_text(text)
-        await send_message(chat_id, reply)
-
-    return {"status": "ok"}
-
-
-async def send_message(chat_id, text):
+# -------------------------- WEBHOOK SETUP --------------------------
+@app.get("/set_webhook")
+async def set_webhook():
+    webhook_url = os.getenv("WEBHOOK_URL")
     async with httpx.AsyncClient() as client:
-        await client.post(f"{BASE_URL}/sendMessage",
-                          json={"chat_id": chat_id, "text": text})
+        r = await client.get(f"{BASE_URL}/setWebhook?url={webhook_url}")
+        return r.json()
 
-
-async def send_photo_b64(chat_id, image_b64):
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            f"{BASE_URL}/sendPhoto",
-            data={"chat_id": chat_id},
-            files={"photo": ("image.png", base64.b64decode(image_b64))}
-        )
+@app.get("/")
+async def root():
+    return {"status": "running"}
