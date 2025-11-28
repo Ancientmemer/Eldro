@@ -2,8 +2,3 @@ fastapi
 uvicorn[standard]
 httpx
 python-dotenv
-pydantic
-pymongo[srv]
-google-genai
-google-api-core
-googleapis-common-protos
