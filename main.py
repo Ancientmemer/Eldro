@@ -7,9 +7,9 @@ import asyncio
 from huggingface_hub import InferenceApi, inference_api
 
 # Read HF key from env
-HF_KEY = os.getenv("HUGGINGFACE_API_KEY")
+HF_KEY = os.getenv("HF_API_KEY")
 if not HF_KEY:
-    print("Warning: HUGGINGFACE_API_KEY not set. HF calls will fail.")
+    print("Warning: HF_API_KEY not set. HF calls will fail.")
 
 # Helper to create InferenceApi instance
 def _get_inference(model: str):
