@@ -76,7 +76,7 @@ async def handle_agent(chat_id: int, text: str):
         "You are Eldro Assistant — short, helpful. If asked to 'plan' do a short step list.\n"
         f"User: {text}\nAssistant:"
     )
-    reply = await call_gemini_text(system, model="gemini-2.0-flash")  # adjust model name as per your access
+    reply = await call_gemini_text(system, model="gemini-1.5-flash")  # adjust model name as per your access
     if not reply:
         reply = "Sorry, no reply from Gemini."
     await send_msg(chat_id, reply)
