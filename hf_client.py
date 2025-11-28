@@ -1,53 +1,68 @@
-import requests
-import json
-import base64
 import os
+import httpx
+import base64
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 
-# Your repo or public model
-HF_TEXT_MODEL_URL = "https://router.huggingface.co/adhinsanthosh2255/Eldro"
-HF_IMAGE_MODEL_URL = "https://router.huggingface.co/models/stabilityai/sd-turbo"
+# Text model
+TEXT_MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 
-headers = {
-    "Authorization": f"Bearer {HF_API_KEY}",
-    "Content-Type": "application/json"
-}
+# Image model
+IMAGE_MODEL = "black-forest-labs/FLUX.1-schnell"
 
-def call_hf_text(prompt: str):
+
+async def call_hf_text(prompt: str) -> str:
+    url = f"https://router.huggingface.co/inference/{TEXT_MODEL}"
+
+    headers = {
+        "Authorization": f"Bearer {HF_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "inputs": prompt
+    }
+
     try:
-        payload = {"inputs": prompt}
+        async with httpx.AsyncClient(timeout=60) as client:
+            res = await client.post(url, json=payload, headers=headers)
+            res.raise_for_status()
+            out = res.json()
 
-        r = requests.post(HF_TEXT_MODEL_URL, headers=headers, json=payload)
+            if isinstance(out, list) and len(out) > 0 and "generated_text" in out[0]:
+                return out[0]["generated_text"]
 
-        if r.status_code != 200:
-            print("HF text error:", r.status_code, r.content)
-            return "Sorry, HF text API error."
-
-        out = r.json()
-        if isinstance(out, list) and len(out) > 0:
-            return out[0].get("generated_text", "")
-        return str(out)
+            return str(out)
 
     except Exception as e:
-        print("HF text exception:", e)
-        return "HF text error."
+        print("HF text error:", e)
+        return "⚠️ HuggingFace text API error."
 
 
-def call_hf_image(prompt: str):
+async def call_hf_image(prompt: str):
+    url = f"https://router.huggingface.co/inference/{IMAGE_MODEL}"
+
+    headers = {
+        "Authorization": f"Bearer {HF_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "inputs": prompt
+    }
+
     try:
-        payload = {"inputs": prompt}
+        async with httpx.AsyncClient(timeout=120) as client:
+            res = await client.post(url, json=payload, headers=headers)
+            res.raise_for_status()
 
-        r = requests.post(HF_IMAGE_MODEL_URL, headers=headers, json=payload)
+            if "image" in res.headers.get("Content-Type", ""):
+                b64 = base64.b64encode(res.content).decode()
+                return b64
 
-        if r.status_code != 200:
-            print("HF image error:", r.status_code, r.content)
-            return None
-
-        img_bytes = r.content
-        b64 = base64.b64encode(img_bytes).decode("utf-8")
-        return b64
+            data = res.json()
+            return data
 
     except Exception as e:
-        print("HF image exception:", e)
+        print("HF image error:", e)
         return None
