@@ -12,7 +12,7 @@ from google.api_core.exceptions import ClientError
 client = genai.Client()
 
 # Default model (change if your Google project gives another model)
-MODEL_DEFAULT = "gemini-2.0-flash"   # <-- default model set here
+MODEL_DEFAULT = "gemini-1.5-flash"   # <-- default model set here
 
 # -----------------------
 # Text generation wrapper
