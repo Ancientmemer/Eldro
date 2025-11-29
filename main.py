@@ -1,71 +1,69 @@
 import os
+import base64
 import httpx
-import traceback
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
-from hf_client import hf_text
+from hf_client import call_hf_text, call_hf_image
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+load_dotenv()
+
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 EXPOSED_URL = os.getenv("EXPOSED_URL")
-PORT = int(os.getenv("PORT", "8080"))
-
-if not TELEGRAM_BOT_TOKEN:
-    raise RuntimeError("Set TELEGRAM_BOT_TOKEN env var first")
-
-TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 app = FastAPI()
 
+async def send_msg(chat_id, text):
+    async with httpx.AsyncClient() as client:
+        await client.post(f"{TELEGRAM_API}/sendMessage", data={
+            "chat_id": chat_id,
+            "text": text
+        })
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+async def send_photo(chat_id, b64_img):
+    img_bytes = base64.b64decode(b64_img)
+    files = {"photo": ("image.png", img_bytes, "image/png")}
+    async with httpx.AsyncClient() as client:
+        await client.post(f"{TELEGRAM_API}/sendPhoto",
+                          data={"chat_id": chat_id},
+                          files=files)
 
+async def handle_agent(chat_id, text):
+    if text.startswith("/img"):
+        prompt = text[4:].strip()
+        await send_msg(chat_id, "Image generate cheyyunnu...")
+        b64 = await call_hf_image(prompt)
 
-async def send_msg(chat_id: int, text: str):
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        await client.post(
-            f"{TELEGRAM_API}/sendMessage",
-            data={"chat_id": chat_id, "text": text}
-        )
-
-
-async def handle_agent(chat_id: int, text: str):
-    text = (text or "").strip()
-    if not text:
+        if isinstance(b64, str) and b64.startswith("Image error"):
+            await send_msg(chat_id, b64)
+        else:
+            await send_photo(chat_id, b64)
         return
 
-    reply = await hf_text(text)
+    # normal chat
+    reply = await call_hf_text(text)
     await send_msg(chat_id, reply)
-
 
 @app.post("/webhook")
 async def webhook(req: Request, background_tasks: BackgroundTasks):
-    update = await req.json()
-
-    msg = update.get("message")
-    if not msg:
-        return {"ok": True}
-
+    data = await req.json()
+    msg = data.get("message", {})
     chat = msg.get("chat", {})
     chat_id = chat.get("id")
     text = msg.get("text", "")
 
-    if not chat_id:
+    if not chat_id or not text:
         return {"ok": True}
 
     background_tasks.add_task(handle_agent, chat_id, text)
     return {"ok": True}
 
-
 @app.get("/set_webhook")
 async def set_webhook():
     if not EXPOSED_URL:
-        raise HTTPException(status_code=400, detail="Set EXPOSED_URL env var first")
+        raise HTTPException(400, "Set EXPOSED_URL first")
 
-    webhook_url = f"{EXPOSED_URL}/webhook"
     async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{TELEGRAM_API}/setWebhook",
-            params={"url": webhook_url}
-        )
+        resp = await client.get(f"{TELEGRAM_API}/setWebhook",
+                                params={"url": f"{EXPOSED_URL}/webhook"})
         return resp.json()
