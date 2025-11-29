@@ -10,8 +10,8 @@ if not HF_API_KEY:
 
 # Set the model ids you will use on Hugging Face.
 # Replace with actual repo ids (owner/model).
-TEXT_MODEL = os.getenv("HF_TEXT_MODEL", "gpt2")  # example: "gpt2" or "bigscience/bloom"
-IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "stabilityai/stable-diffusion-2")  # example
+TEXT_MODEL = os.getenv("HF_TEXT_MODEL", "meta-llama/Llama-3.1-8B-Instruct")  # example: "gpt2" or "bigscience/bloom"
+IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "Tongyi-MAI/Z-Image-Turbo")  # example
 
 HF_API_URL = "https://router.huggingface.co/models/{}"
 HEADERS = {"Authorization": f"Bearer {HF_API_KEY}"}
