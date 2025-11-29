@@ -10,7 +10,7 @@ client = OpenAI(
     api_key=HF_API_KEY
 )
 
-MODEL_TEXT = "openai/gpt-oss-20b"  
+MODEL_TEXT = "meta-llama/Llama-3.1-8B-Instruct"  
 MODEL_IMAGE = "Tongyi-MAI/Z-Image-Turbo"
 
 async def call_hf_text(prompt: str) -> str:
