@@ -10,7 +10,7 @@ client = OpenAI(
     api_key=HF_API_KEY
 )
 
-MODEL_TEXT = "MiniMaxAI/MiniMax-M2"  
+MODEL_TEXT = "moonshotai/Kimi-K2-Thinking"  
 MODEL_IMAGE = "Tongyi-MAI/Z-Image-Turbo"
 
 async def call_hf_text(prompt: str) -> str:
