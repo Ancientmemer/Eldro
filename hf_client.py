@@ -1,39 +1,52 @@
 # hf_client.py
 import os
+import traceback
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 
 client = OpenAI(
-    api_key=HF_API_KEY,
-    base_url="https://router.huggingface.co/v1/"
+    base_url="https://router.huggingface.co/v1/",
+    api_key=HF_API_KEY
 )
 
-# TEXT generation
-async def call_hf_text(prompt: str, model="meta-llama/Llama-3.1-8B-Instruct"):
+MODEL_TEXT = "meta-llama/Llama-3.1-8B-Instruct"  
+MODEL_IMAGE = "black-forest-labs/FLUX.1-dev"
+
+async def call_hf_text(prompt: str) -> str:
     try:
         completion = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=200
+            model=MODEL_TEXT,
+            messages=[{"role": "user", "content": prompt}]
         )
-        return completion.choices[0].message["content"]
+
+        # NEW CORRECT WAY
+        reply = completion.choices[0].message.content
+        return reply
+
     except Exception as e:
+        traceback.print_exc()
         return f"Hugging Face text error: {e}"
 
-# IMAGE generation
-async def call_hf_image(prompt: str, model="black-forest-labs/FLUX.1-dev"):
+
+async def call_hf_image(prompt: str):
     try:
-        img = client.images.generate(
-            model=model,
+        result = client.images.generate(
+            model=MODEL_IMAGE,
             prompt=prompt
         )
-        b64 = img.data[0].b64_json
-        return b64
+
+        # Some models return base64, some return URL
+        output = result.data[0]
+
+        if hasattr(output, "b64_json") and output.b64_json:
+            return {"b64": output.b64_json}
+
+        if hasattr(output, "url") and output.url:
+            return {"url": output.url}
+
+        return {}
+
     except Exception as e:
-        return f"Image error: {e}"
+        traceback.print_exc()
+        return {}
