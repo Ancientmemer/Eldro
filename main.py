@@ -19,8 +19,8 @@ if not TELEGRAM_BOT_TOKEN:
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 # Default HF models (you can change from Koyeb envs if needed)
-HF_TEXT_MODEL = os.getenv("HF_TEXT_MODEL", "gpt2")  # small default; replace with better HF-inference model you want
-HF_IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "runwayml/stable-diffusion-v1-5")  # recommended: stable-diffusion model
+HF_TEXT_MODEL = os.getenv("HF_TEXT_MODEL", "deepseek-ai/DeepSeek-Math-V2")  # small default; replace with better HF-inference model you want
+HF_IMAGE_MODEL = os.getenv("HF_IMAGE_MODEL", "Tongyi-MAI/Z-Image-Turbo")  # recommended: stable-diffusion model
 
 app = FastAPI()
 
@@ -80,7 +80,7 @@ async def call_hf_image(prompt: str, model: Optional[str] = None) -> Optional[by
     if not HF_API_KEY:
         return None
 
-    url = f"https://api-inference.huggingface.co/models/{model}"  # router also supports /models/...
+    url = f"https://router.huggingface.co/models/{model}"  # router also supports /models/...
     headers = {
         "Authorization": f"Bearer {HF_API_KEY}",
         # Accept left default — we will handle JSON or binary below
