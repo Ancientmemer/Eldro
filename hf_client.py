@@ -10,8 +10,8 @@ client = OpenAI(
     api_key=HF_API_KEY
 )
 
-MODEL_TEXT = "openai-community/gpt2"  
-MODEL_IMAGE = "black-forest-labs/FLUX.1-dev"
+MODEL_TEXT = "MiniMaxAI/MiniMax-M2"  
+MODEL_IMAGE = "Tongyi-MAI/Z-Image-Turbo"
 
 async def call_hf_text(prompt: str) -> str:
     try:
