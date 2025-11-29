@@ -10,7 +10,7 @@ client = OpenAI(
     api_key=HF_API_KEY
 )
 
-MODEL_TEXT = "deepseek-ai/DeepSeek-Math-V2"  
+MODEL_TEXT = "openai-community/gpt2"  
 MODEL_IMAGE = "black-forest-labs/FLUX.1-dev"
 
 async def call_hf_text(prompt: str) -> str:
