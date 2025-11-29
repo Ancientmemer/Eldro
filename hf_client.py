@@ -15,7 +15,7 @@ client = InferenceClient(api_key=HF_API_KEY)
 async def call_hf_text(prompt: str):
     try:
         response = client.text_generation(
-            model="meta-llama/Llama-3.2-1B-Instruct",
+            model="deepseek-ai/DeepSeek-Math-V2",
             prompt=prompt,
             max_new_tokens=200
         )
@@ -28,7 +28,7 @@ async def call_hf_text(prompt: str):
 async def call_hf_image(prompt: str):
     try:
         img_bytes = client.text_to_image(
-            model="black-forest-labs/FLUX.1-schnell",
+            model="Tongyi-MAI/Z-Image-Turbo",
             prompt=prompt
         )
         encoded = base64.b64encode(img_bytes).decode("utf-8")
