@@ -1,19 +1,19 @@
 import os
 from openai import OpenAI
 
+HF_API_KEY = os.getenv("HF_API_KEY")
+
 client = OpenAI(
-    base_url="https://router.huggingface.co/v1",
-    api_key=os.environ["HF_TOKEN"],
+    base_url="https://router.huggingface.co/v1/",
+    api_key=HF_API_KEY
 )
 
-completion = client.chat.completions.create(
-    model="meta-llama/Llama-3.1-8B-Instruct:novita",
-    messages=[
-        {
-            "role": "user",
-            "content": "What is the capital of France?"
-        }
-    ],
-)
-
-print(completion.choices[0].message)
+async def hf_text(prompt: str, model="meta-llama/Llama-3.1-8B-Instruct:novita"):
+    try:
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return completion.choices[0].message["content"]
+    except Exception as e:
+        return f"Hugging Face text error: {e}"
